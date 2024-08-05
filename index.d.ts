@@ -1,345 +1,257 @@
-declare type CSSColor =
-	| 'aliceblue'
-	| 'antiquewhite'
-	| 'aqua'
-	| 'aquamarine'
-	| 'azure'
-	| 'beige'
-	| 'bisque'
-	| 'black'
-	| 'blanchedalmond'
-	| 'blue'
-	| 'blueviolet'
-	| 'brown'
-	| 'burlywood'
-	| 'cadetblue'
-	| 'chartreuse'
-	| 'chocolate'
-	| 'coral'
-	| 'cornflowerblue'
-	| 'cornsilk'
-	| 'crimson'
-	| 'cyan'
-	| 'darkblue'
-	| 'darkcyan'
-	| 'darkgoldenrod'
-	| 'darkgray'
-	| 'darkgreen'
-	| 'darkgrey'
-	| 'darkkhaki'
-	| 'darkmagenta'
-	| 'darkolivegreen'
-	| 'darkorange'
-	| 'darkorchid'
-	| 'darkred'
-	| 'darksalmon'
-	| 'darkseagreen'
-	| 'darkslateblue'
-	| 'darkslategray'
-	| 'darkslategrey'
-	| 'darkturquoise'
-	| 'darkviolet'
-	| 'deeppink'
-	| 'deepskyblue'
-	| 'dimgray'
-	| 'dimgrey'
-	| 'dodgerblue'
-	| 'firebrick'
-	| 'floralwhite'
-	| 'forestgreen'
-	| 'fuchsia'
-	| 'gainsboro'
-	| 'ghostwhite'
-	| 'gold'
-	| 'goldenrod'
-	| 'gray'
-	| 'green'
-	| 'greenyellow'
-	| 'grey'
-	| 'honeydew'
-	| 'hotpink'
-	| 'indianred'
-	| 'indigo'
-	| 'ivory'
-	| 'khaki'
-	| 'lavender'
-	| 'lavenderblush'
-	| 'lawngreen'
-	| 'lemonchiffon'
-	| 'lightblue'
-	| 'lightcoral'
-	| 'lightcyan'
-	| 'lightgoldenrodyellow'
-	| 'lightgray'
-	| 'lightgreen'
-	| 'lightgrey'
-	| 'lightpink'
-	| 'lightsalmon'
-	| 'lightseagreen'
-	| 'lightskyblue'
-	| 'lightslategray'
-	| 'lightslategrey'
-	| 'lightsteelblue'
-	| 'lightyellow'
-	| 'lime'
-	| 'limegreen'
-	| 'linen'
-	| 'magenta'
-	| 'maroon'
-	| 'mediumaquamarine'
-	| 'mediumblue'
-	| 'mediumorchid'
-	| 'mediumpurple'
-	| 'mediumseagreen'
-	| 'mediumslateblue'
-	| 'mediumspringgreen'
-	| 'mediumturquoise'
-	| 'mediumvioletred'
-	| 'midnightblue'
-	| 'mintcream'
-	| 'mistyrose'
-	| 'moccasin'
-	| 'navajowhite'
-	| 'navy'
-	| 'oldlace'
-	| 'olive'
-	| 'olivedrab'
-	| 'orange'
-	| 'orangered'
-	| 'orchid'
-	| 'palegoldenrod'
-	| 'palegreen'
-	| 'paleturquoise'
-	| 'palevioletred'
-	| 'papayawhip'
-	| 'peachpuff'
-	| 'peru'
-	| 'pink'
-	| 'plum'
-	| 'powderblue'
-	| 'purple'
-	| 'rebeccapurple'
-	| 'red'
-	| 'rosybrown'
-	| 'royalblue'
-	| 'saddlebrown'
-	| 'salmon'
-	| 'sandybrown'
-	| 'seagreen'
-	| 'seashell'
-	| 'sienna'
-	| 'silver'
-	| 'skyblue'
-	| 'slateblue'
-	| 'slategray'
-	| 'slategrey'
-	| 'snow'
-	| 'springgreen'
-	| 'steelblue'
-	| 'tan'
-	| 'teal'
-	| 'thistle'
-	| 'tomato'
-	| 'turquoise'
-	| 'violet'
-	| 'wheat'
-	| 'white'
-	| 'whitesmoke'
-	| 'yellow'
-	| 'yellowgreen';
-
-declare namespace ansiStyles {
-	interface ColorConvert {
-		/**
-		The RGB color space.
-
-		@param red - (`0`-`255`)
-		@param green - (`0`-`255`)
-		@param blue - (`0`-`255`)
-		*/
-		rgb(red: number, green: number, blue: number): string;
-
-		/**
-		The RGB HEX color space.
-
-		@param hex - A hexadecimal string containing RGB data.
-		*/
-		hex(hex: string): string;
-
-		/**
-		@param keyword - A CSS color name.
-		*/
-		keyword(keyword: CSSColor): string;
-
-		/**
-		The HSL color space.
-
-		@param hue - (`0`-`360`)
-		@param saturation - (`0`-`100`)
-		@param lightness - (`0`-`100`)
-		*/
-		hsl(hue: number, saturation: number, lightness: number): string;
-
-		/**
-		The HSV color space.
-
-		@param hue - (`0`-`360`)
-		@param saturation - (`0`-`100`)
-		@param value - (`0`-`100`)
-		*/
-		hsv(hue: number, saturation: number, value: number): string;
-
-		/**
-		The HSV color space.
-
-		@param hue - (`0`-`360`)
-		@param whiteness - (`0`-`100`)
-		@param blackness - (`0`-`100`)
-		*/
-		hwb(hue: number, whiteness: number, blackness: number): string;
-
-		/**
-		Use a [4-bit unsigned number](https://en.wikipedia.org/wiki/ANSI_escape_code#3/4-bit) to set text color.
-		*/
-		ansi(ansi: number): string;
-
-		/**
-		Use an [8-bit unsigned number](https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit) to set text color.
-		*/
-		ansi256(ansi: number): string;
-	}
-
-	interface CSPair {
-		/**
-		The ANSI terminal control sequence for starting this style.
-		*/
-		readonly open: string;
-
-		/**
-		The ANSI terminal control sequence for ending this style.
-		*/
-		readonly close: string;
-	}
-
-	interface ColorBase {
-		readonly ansi: ColorConvert;
-		readonly ansi256: ColorConvert;
-		readonly ansi16m: ColorConvert;
-
-		/**
-		The ANSI terminal control sequence for ending this color.
-		*/
-		readonly close: string;
-	}
-
-	interface Modifier {
-		/**
-		Resets the current color chain.
-		*/
-		readonly reset: CSPair;
-
-		/**
-		Make text bold.
-		*/
-		readonly bold: CSPair;
-
-		/**
-		Emitting only a small amount of light.
-		*/
-		readonly dim: CSPair;
-
-		/**
-		Make text italic. (Not widely supported)
-		*/
-		readonly italic: CSPair;
-
-		/**
-		Make text underline. (Not widely supported)
-		*/
-		readonly underline: CSPair;
-
-		/**
-		Inverse background and foreground colors.
-		*/
-		readonly inverse: CSPair;
-
-		/**
-		Prints the text, but makes it invisible.
-		*/
-		readonly hidden: CSPair;
-
-		/**
-		Puts a horizontal line through the center of the text. (Not widely supported)
-		*/
-		readonly strikethrough: CSPair;
-	}
-
-	interface ForegroundColor {
-		readonly black: CSPair;
-		readonly red: CSPair;
-		readonly green: CSPair;
-		readonly yellow: CSPair;
-		readonly blue: CSPair;
-		readonly cyan: CSPair;
-		readonly magenta: CSPair;
-		readonly white: CSPair;
-
-		/**
-		Alias for `blackBright`.
-		*/
-		readonly gray: CSPair;
-
-		/**
-		Alias for `blackBright`.
-		*/
-		readonly grey: CSPair;
-
-		readonly blackBright: CSPair;
-		readonly redBright: CSPair;
-		readonly greenBright: CSPair;
-		readonly yellowBright: CSPair;
-		readonly blueBright: CSPair;
-		readonly cyanBright: CSPair;
-		readonly magentaBright: CSPair;
-		readonly whiteBright: CSPair;
-	}
-
-	interface BackgroundColor {
-		readonly bgBlack: CSPair;
-		readonly bgRed: CSPair;
-		readonly bgGreen: CSPair;
-		readonly bgYellow: CSPair;
-		readonly bgBlue: CSPair;
-		readonly bgCyan: CSPair;
-		readonly bgMagenta: CSPair;
-		readonly bgWhite: CSPair;
-
-		/**
-		Alias for `bgBlackBright`.
-		*/
-		readonly bgGray: CSPair;
-
-		/**
-		Alias for `bgBlackBright`.
-		*/
-		readonly bgGrey: CSPair;
-
-		readonly bgBlackBright: CSPair;
-		readonly bgRedBright: CSPair;
-		readonly bgGreenBright: CSPair;
-		readonly bgYellowBright: CSPair;
-		readonly bgBlueBright: CSPair;
-		readonly bgCyanBright: CSPair;
-		readonly bgMagentaBright: CSPair;
-		readonly bgWhiteBright: CSPair;
-	}
+/// <reference types="node" />
+export = wdm;
+/** @typedef {import("schema-utils/declarations/validate").Schema} Schema */
+/** @typedef {import("webpack").Compiler} Compiler */
+/** @typedef {import("webpack").MultiCompiler} MultiCompiler */
+/** @typedef {import("webpack").Configuration} Configuration */
+/** @typedef {import("webpack").Stats} Stats */
+/** @typedef {import("webpack").MultiStats} MultiStats */
+/**
+ * @typedef {Object} ExtendedServerResponse
+ * @property {{ webpack?: { devMiddleware?: Context<IncomingMessage, ServerResponse> } }} [locals]
+ */
+/** @typedef {import("http").IncomingMessage} IncomingMessage */
+/** @typedef {import("http").ServerResponse & ExtendedServerResponse} ServerResponse */
+/**
+ * @callback NextFunction
+ * @param {any} [err]
+ * @return {void}
+ */
+/**
+ * @typedef {NonNullable<Configuration["watchOptions"]>} WatchOptions
+ */
+/**
+ * @typedef {Compiler["watching"]} Watching
+ */
+/**
+ * @typedef {ReturnType<Compiler["watch"]>} MultiWatching
+ */
+/**
+ * @typedef {Compiler["outputFileSystem"] & { createReadStream?: import("fs").createReadStream, statSync?: import("fs").statSync, lstat?: import("fs").lstat, readFileSync?: import("fs").readFileSync }} OutputFileSystem
+ */
+/** @typedef {ReturnType<Compiler["getInfrastructureLogger"]>} Logger */
+/**
+ * @callback Callback
+ * @param {Stats | MultiStats} [stats]
+ */
+/**
+ * @template {IncomingMessage} Request
+ * @template {ServerResponse} Response
+ * @typedef {Object} Context
+ * @property {boolean} state
+ * @property {Stats | MultiStats | undefined} stats
+ * @property {Callback[]} callbacks
+ * @property {Options<Request, Response>} options
+ * @property {Compiler | MultiCompiler} compiler
+ * @property {Watching | MultiWatching} watching
+ * @property {Logger} logger
+ * @property {OutputFileSystem} outputFileSystem
+ */
+/**
+ * @template {IncomingMessage} Request
+ * @template {ServerResponse} Response
+ * @typedef {Record<string, string | number> | Array<{ key: string, value: number | string }> | ((req: Request, res: Response, context: Context<Request, Response>) =>  void | undefined | Record<string, string | number>) | undefined} Headers
+ */
+/**
+ * @template {IncomingMessage} Request
+ * @template {ServerResponse} Response
+ * @typedef {Object} Options
+ * @property {{[key: string]: string}} [mimeTypes]
+ * @property {boolean | ((targetPath: string) => boolean)} [writeToDisk]
+ * @property {string} [methods]
+ * @property {Headers<Request, Response>} [headers]
+ * @property {NonNullable<Configuration["output"]>["publicPath"]} [publicPath]
+ * @property {Configuration["stats"]} [stats]
+ * @property {boolean} [serverSideRender]
+ * @property {OutputFileSystem} [outputFileSystem]
+ * @property {boolean | string} [index]
+ */
+/**
+ * @template {IncomingMessage} Request
+ * @template {ServerResponse} Response
+ * @callback Middleware
+ * @param {Request} req
+ * @param {Response} res
+ * @param {NextFunction} next
+ * @return {Promise<void>}
+ */
+/**
+ * @callback GetFilenameFromUrl
+ * @param {string} url
+ * @returns {string | undefined}
+ */
+/**
+ * @callback WaitUntilValid
+ * @param {Callback} callback
+ */
+/**
+ * @callback Invalidate
+ * @param {Callback} callback
+ */
+/**
+ * @callback Close
+ * @param {(err: Error | null | undefined) => void} callback
+ */
+/**
+ * @template {IncomingMessage} Request
+ * @template {ServerResponse} Response
+ * @typedef {Object} AdditionalMethods
+ * @property {GetFilenameFromUrl} getFilenameFromUrl
+ * @property {WaitUntilValid} waitUntilValid
+ * @property {Invalidate} invalidate
+ * @property {Close} close
+ * @property {Context<Request, Response>} context
+ */
+/**
+ * @template {IncomingMessage} Request
+ * @template {ServerResponse} Response
+ * @typedef {Middleware<Request, Response> & AdditionalMethods<Request, Response>} API
+ */
+/**
+ * @template {IncomingMessage} Request
+ * @template {ServerResponse} Response
+ * @param {Compiler | MultiCompiler} compiler
+ * @param {Options<Request, Response>} [options]
+ * @returns {API<Request, Response>}
+ */
+declare function wdm<
+  Request_1 extends import("http").IncomingMessage,
+  Response_1 extends ServerResponse
+>(
+  compiler: Compiler | MultiCompiler,
+  options?: Options<Request_1, Response_1> | undefined
+): API<Request_1, Response_1>;
+declare namespace wdm {
+  export {
+    Schema,
+    Compiler,
+    MultiCompiler,
+    Configuration,
+    Stats,
+    MultiStats,
+    ExtendedServerResponse,
+    IncomingMessage,
+    ServerResponse,
+    NextFunction,
+    WatchOptions,
+    Watching,
+    MultiWatching,
+    OutputFileSystem,
+    Logger,
+    Callback,
+    Context,
+    Headers,
+    Options,
+    Middleware,
+    GetFilenameFromUrl,
+    WaitUntilValid,
+    Invalidate,
+    Close,
+    AdditionalMethods,
+    API,
+  };
 }
-
-declare const ansiStyles: {
-	readonly modifier: ansiStyles.Modifier;
-	readonly color: ansiStyles.ForegroundColor & ansiStyles.ColorBase;
-	readonly bgColor: ansiStyles.BackgroundColor & ansiStyles.ColorBase;
-	readonly codes: ReadonlyMap<number, number>;
-} & ansiStyles.BackgroundColor & ansiStyles.ForegroundColor & ansiStyles.Modifier;
-
-export = ansiStyles;
+type ServerResponse = import("http").ServerResponse & ExtendedServerResponse;
+type Compiler = import("webpack").Compiler;
+type MultiCompiler = import("webpack").MultiCompiler;
+type Options<
+  Request_1 extends import("http").IncomingMessage,
+  Response_1 extends ServerResponse
+> = {
+  mimeTypes?:
+    | {
+        [key: string]: string;
+      }
+    | undefined;
+  writeToDisk?: boolean | ((targetPath: string) => boolean) | undefined;
+  methods?: string | undefined;
+  headers?: Headers<Request_1, Response_1>;
+  publicPath?: NonNullable<Configuration["output"]>["publicPath"];
+  stats?: Configuration["stats"];
+  serverSideRender?: boolean | undefined;
+  outputFileSystem?: OutputFileSystem | undefined;
+  index?: string | boolean | undefined;
+};
+type API<
+  Request_1 extends import("http").IncomingMessage,
+  Response_1 extends ServerResponse
+> = Middleware<Request_1, Response_1> &
+  AdditionalMethods<Request_1, Response_1>;
+type Schema = import("schema-utils/declarations/validate").Schema;
+type Configuration = import("webpack").Configuration;
+type Stats = import("webpack").Stats;
+type MultiStats = import("webpack").MultiStats;
+type ExtendedServerResponse = {
+  locals?:
+    | {
+        webpack?:
+          | {
+              devMiddleware?:
+                | Context<import("http").IncomingMessage, ServerResponse>
+                | undefined;
+            }
+          | undefined;
+      }
+    | undefined;
+};
+type IncomingMessage = import("http").IncomingMessage;
+type NextFunction = (err?: any) => void;
+type WatchOptions = NonNullable<Configuration["watchOptions"]>;
+type Watching = Compiler["watching"];
+type MultiWatching = ReturnType<Compiler["watch"]>;
+type OutputFileSystem = Compiler["outputFileSystem"] & {
+  createReadStream?: typeof import("fs").createReadStream;
+  statSync?: typeof import("fs").statSync;
+  lstat?: typeof import("fs").lstat;
+  readFileSync?: typeof import("fs").readFileSync;
+};
+type Logger = ReturnType<Compiler["getInfrastructureLogger"]>;
+type Callback = (
+  stats?: import("webpack").Stats | import("webpack").MultiStats | undefined
+) => any;
+type Context<
+  Request_1 extends import("http").IncomingMessage,
+  Response_1 extends ServerResponse
+> = {
+  state: boolean;
+  stats: Stats | MultiStats | undefined;
+  callbacks: Callback[];
+  options: Options<Request_1, Response_1>;
+  compiler: Compiler | MultiCompiler;
+  watching: Watching | MultiWatching;
+  logger: Logger;
+  outputFileSystem: OutputFileSystem;
+};
+type Headers<
+  Request_1 extends import("http").IncomingMessage,
+  Response_1 extends ServerResponse
+> =
+  | Record<string, string | number>
+  | {
+      key: string;
+      value: number | string;
+    }[]
+  | ((
+      req: Request_1,
+      res: Response_1,
+      context: Context<Request_1, Response_1>
+    ) => void | undefined | Record<string, string | number>)
+  | undefined;
+type Middleware<
+  Request_1 extends import("http").IncomingMessage,
+  Response_1 extends ServerResponse
+> = (req: Request_1, res: Response_1, next: NextFunction) => Promise<void>;
+type GetFilenameFromUrl = (url: string) => string | undefined;
+type WaitUntilValid = (callback: Callback) => any;
+type Invalidate = (callback: Callback) => any;
+type Close = (callback: (err: Error | null | undefined) => void) => any;
+type AdditionalMethods<
+  Request_1 extends import("http").IncomingMessage,
+  Response_1 extends ServerResponse
+> = {
+  getFilenameFromUrl: GetFilenameFromUrl;
+  waitUntilValid: WaitUntilValid;
+  invalidate: Invalidate;
+  close: Close;
+  context: Context<Request_1, Response_1>;
+};

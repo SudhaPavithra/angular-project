@@ -1,291 +1,320 @@
-"use strict";
+function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
+function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = null != arguments[i] ? arguments[i] : {}; i % 2 ? ownKeys(Object(source), !0).forEach(function (key) { _defineProperty(target, key, source[key]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } return target; }
+function _defineProperty(obj, key, value) { key = _toPropertyKey(key); if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+function _toPropertyKey(arg) { var key = _toPrimitive(arg, "string"); return typeof key === "symbol" ? key : String(key); }
+function _toPrimitive(input, hint) { if (typeof input !== "object" || input === null) return input; var prim = input[Symbol.toPrimitive]; if (prim !== undefined) { var res = prim.call(input, hint || "default"); if (typeof res !== "object") return res; throw new TypeError("@@toPrimitive must return a primitive value."); } return (hint === "string" ? String : Number)(input); }
+/* global __resourceQuery, __webpack_hash__ */
+/// <reference types="webpack/module" />
+import webpackHotLog from "webpack/hot/log.js";
+import stripAnsi from "./utils/stripAnsi.js";
+import parseURL from "./utils/parseURL.js";
+import socket from "./socket.js";
+import { formatProblem, createOverlay } from "./overlay.js";
+import { log, logEnabledFeatures, setLogLevel } from "./utils/log.js";
+import sendMessage from "./utils/sendMessage.js";
+import reloadApp from "./utils/reloadApp.js";
+import createSocketURL from "./utils/createSocketURL.js";
+
 /**
- * Copyright (c) 2015-present, Waysact Pty Ltd
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
+ * @typedef {Object} OverlayOptions
+ * @property {boolean | (error: Error) => boolean} [warnings]
+ * @property {boolean | (error: Error) => boolean} [errors]
+ * @property {boolean | (error: Error) => boolean} [runtimeErrors]
+ * @property {string} [trustedTypesPolicyName]
  */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
+
+/**
+ * @typedef {Object} Options
+ * @property {boolean} hot
+ * @property {boolean} liveReload
+ * @property {boolean} progress
+ * @property {boolean | OverlayOptions} overlay
+ * @property {string} [logging]
+ * @property {number} [reconnect]
+ */
+
+/**
+ * @typedef {Object} Status
+ * @property {boolean} isUnloading
+ * @property {string} currentHash
+ * @property {string} [previousHash]
+ */
+
+/**
+ * @param {boolean | { warnings?: boolean | string; errors?: boolean | string; runtimeErrors?: boolean | string; }} overlayOptions
+ */
+var decodeOverlayOptions = function decodeOverlayOptions(overlayOptions) {
+  if (typeof overlayOptions === "object") {
+    ["warnings", "errors", "runtimeErrors"].forEach(function (property) {
+      if (typeof overlayOptions[property] === "string") {
+        var overlayFilterFunctionString = decodeURIComponent(overlayOptions[property]);
+
+        // eslint-disable-next-line no-new-func
+        var overlayFilterFunction = new Function("message", "var callback = ".concat(overlayFilterFunctionString, "\n        return callback(message)"));
+        overlayOptions[property] = overlayFilterFunction;
+      }
+    });
+  }
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SubresourceIntegrityPlugin = void 0;
-const crypto_1 = require("crypto");
-const webpack_1 = require("webpack");
-const plugin_1 = require("./plugin");
-const reporter_1 = require("./reporter");
-const util_1 = require("./util");
-const thisPluginName = "webpack-subresource-integrity";
-// https://www.w3.org/TR/2016/REC-SRI-20160623/#cryptographic-hash-functions
-const standardHashFuncNames = ["sha256", "sha384", "sha512"];
-let getHtmlWebpackPluginHooks = null;
-class AddLazySriRuntimeModule extends webpack_1.RuntimeModule {
-    constructor(sriHashes, chunkName) {
-        super(`webpack-subresource-integrity lazy hashes for direct children of chunk ${chunkName}`);
-        this.sriHashes = sriHashes;
-    }
-    generate() {
-        return webpack_1.Template.asString([
-            `Object.assign(${util_1.sriHashVariableReference}, ${JSON.stringify(this.sriHashes)});`,
-        ]);
-    }
-}
+
 /**
- * The webpack-subresource-integrity plugin.
- *
- * @public
+ * @type {Status}
  */
-class SubresourceIntegrityPlugin {
-    /**
-     * Create a new instance.
-     *
-     * @public
-     */
-    constructor(options = {}) {
-        /**
-         * @internal
-         */
-        this.setup = (compilation) => {
-            const reporter = new reporter_1.Reporter(compilation, thisPluginName);
-            if (!this.validateOptions(compilation, reporter) ||
-                !this.isEnabled(compilation)) {
-                return;
-            }
-            const plugin = new plugin_1.Plugin(compilation, this.options, reporter);
-            if (typeof compilation.outputOptions.chunkLoading === "string" &&
-                ["require", "async-node"].includes(compilation.outputOptions.chunkLoading)) {
-                reporter.warnOnce("This plugin is not useful for non-web targets.");
-                return;
-            }
-            compilation.hooks.beforeRuntimeRequirements.tap(thisPluginName, () => {
-                plugin.beforeRuntimeRequirements();
-            });
-            compilation.hooks.processAssets.tap({
-                name: thisPluginName,
-                stage: compilation.compiler.webpack.Compilation
-                    .PROCESS_ASSETS_STAGE_OPTIMIZE_INLINE,
-            }, (records) => {
-                return plugin.processAssets(records);
-            });
-            compilation.hooks.afterProcessAssets.tap(thisPluginName, (records) => {
-                for (const chunk of compilation.chunks.values()) {
-                    for (const chunkFile of chunk.files) {
-                        if (chunkFile in records &&
-                            records[chunkFile].source().includes(util_1.placeholderPrefix)) {
-                            reporter.errorOnce(`Asset ${chunkFile} contains unresolved integrity placeholders`);
-                        }
-                    }
-                }
-            });
-            compilation.compiler.webpack.optimize.RealContentHashPlugin.getCompilationHooks(compilation).updateHash.tap(thisPluginName, (input, oldHash) => {
-                // FIXME: remove type hack pending https://github.com/webpack/webpack/pull/12642#issuecomment-784744910
-                return plugin.updateHash(input, oldHash);
-            });
-            if (getHtmlWebpackPluginHooks) {
-                getHtmlWebpackPluginHooks(compilation).beforeAssetTagGeneration.tapPromise(thisPluginName, async (pluginArgs) => {
-                    plugin.handleHwpPluginArgs(pluginArgs);
-                    return pluginArgs;
-                });
-                getHtmlWebpackPluginHooks(compilation).alterAssetTagGroups.tapPromise({
-                    name: thisPluginName,
-                    stage: 10000,
-                }, async (data) => {
-                    plugin.handleHwpBodyTags(data);
-                    return data;
-                });
-            }
-            const { mainTemplate } = compilation;
-            mainTemplate.hooks.jsonpScript.tap(thisPluginName, (source) => plugin.addAttribute("script", source));
-            mainTemplate.hooks.linkPreload.tap(thisPluginName, (source) => plugin.addAttribute("link", source));
-            mainTemplate.hooks.localVars.tap(thisPluginName, (source, chunk) => {
-                const allChunks = this.options.hashLoading === "lazy"
-                    ? plugin.getChildChunksToAddToChunkManifest(chunk)
-                    : util_1.findChunks(chunk);
-                const includedChunks = chunk.getChunkMaps(false).hash;
-                if (Object.keys(includedChunks).length > 0) {
-                    return compilation.compiler.webpack.Template.asString([
-                        source,
-                        `${util_1.sriHashVariableReference} = ` +
-                            JSON.stringify(util_1.generateSriHashPlaceholders(Array.from(allChunks).filter((depChunk) => depChunk.id !== null &&
-                                includedChunks[depChunk.id.toString()]), this.options.hashFuncNames)) +
-                            ";",
-                    ]);
-                }
-                return source;
-            });
-            if (this.options.hashLoading === "lazy") {
-                compilation.hooks.additionalChunkRuntimeRequirements.tap(thisPluginName, (chunk) => {
-                    var _a;
-                    const childChunks = plugin.getChildChunksToAddToChunkManifest(chunk);
-                    if (childChunks.size > 0 && !chunk.hasRuntime()) {
-                        compilation.addRuntimeModule(chunk, new AddLazySriRuntimeModule(util_1.generateSriHashPlaceholders(childChunks, this.options.hashFuncNames), (_a = chunk.name) !== null && _a !== void 0 ? _a : chunk.id));
-                    }
-                });
-            }
-        };
-        /**
-         * @internal
-         */
-        this.validateOptions = (compilation, reporter) => {
-            if (this.isEnabled(compilation) &&
-                !compilation.compiler.options.output.crossOriginLoading) {
-                reporter.warnOnce('SRI requires a cross-origin policy, defaulting to "anonymous". ' +
-                    "Set webpack option output.crossOriginLoading to a value other than false " +
-                    "to make this warning go away. " +
-                    "See https://w3c.github.io/webappsec-subresource-integrity/#cross-origin-data-leakage");
-            }
-            return (this.validateHashFuncNames(reporter) && this.validateHashLoading(reporter));
-        };
-        /**
-         * @internal
-         */
-        this.validateHashFuncNames = (reporter) => {
-            if (!Array.isArray(this.options.hashFuncNames)) {
-                reporter.error("options.hashFuncNames must be an array of hash function names, " +
-                    "instead got '" +
-                    this.options.hashFuncNames +
-                    "'.");
-                return false;
-            }
-            else if (this.options.hashFuncNames.length === 0) {
-                reporter.error("Must specify at least one hash function name.");
-                return false;
-            }
-            else if (!this.options.hashFuncNames.every(this.validateHashFuncName.bind(this, reporter))) {
-                return false;
-            }
-            else {
-                this.warnStandardHashFunc(reporter);
-                return true;
-            }
-        };
-        /**
-         * @internal
-         */
-        this.validateHashLoading = (reporter) => {
-            const supportedHashLoadingOptions = Object.freeze(["eager", "lazy"]);
-            if (supportedHashLoadingOptions.includes(this.options.hashLoading)) {
-                return true;
-            }
-            const optionsStr = supportedHashLoadingOptions
-                .map((opt) => `'${opt}'`)
-                .join(", ");
-            reporter.error(`options.hashLoading must be one of ${optionsStr}, instead got '${this.options.hashLoading}'`);
-            return false;
-        };
-        /**
-         * @internal
-         */
-        this.warnStandardHashFunc = (reporter) => {
-            let foundStandardHashFunc = false;
-            for (let i = 0; i < this.options.hashFuncNames.length; i += 1) {
-                if (standardHashFuncNames.indexOf(this.options.hashFuncNames[i]) >= 0) {
-                    foundStandardHashFunc = true;
-                }
-            }
-            if (!foundStandardHashFunc) {
-                reporter.warnOnce("It is recommended that at least one hash function is part of the set " +
-                    "for which support is mandated by the specification. " +
-                    "These are: " +
-                    standardHashFuncNames.join(", ") +
-                    ". " +
-                    "See http://www.w3.org/TR/SRI/#cryptographic-hash-functions for more information.");
-            }
-        };
-        /**
-         * @internal
-         */
-        this.validateHashFuncName = (reporter, hashFuncName) => {
-            if (typeof hashFuncName !== "string" &&
-                !(hashFuncName instanceof String)) {
-                reporter.error("options.hashFuncNames must be an array of hash function names, " +
-                    "but contained " +
-                    hashFuncName +
-                    ".");
-                return false;
-            }
-            try {
-                crypto_1.createHash(hashFuncName);
-            }
-            catch (error) {
-                reporter.error("Cannot use hash function '" + hashFuncName + "': " + error.message);
-                return false;
-            }
-            return true;
-        };
-        if (typeof options !== "object") {
-            throw new Error("webpack-subresource-integrity: argument must be an object");
-        }
-        this.options = {
-            hashFuncNames: ["sha384"],
-            enabled: "auto",
-            hashLoading: "eager",
-            ...options,
-        };
-    }
-    /**
-     * @internal
-     */
-    isEnabled(compilation) {
-        if (this.options.enabled === "auto") {
-            return compilation.options.mode !== "development";
-        }
-        return this.options.enabled;
-    }
-    apply(compiler) {
-        compiler.hooks.beforeCompile.tapPromise(thisPluginName, async () => {
-            try {
-                getHtmlWebpackPluginHooks = (await Promise.resolve().then(() => __importStar(require("html-webpack-plugin"))))
-                    .default.getHooks;
-            }
-            catch (e) {
-                if (e.code !== "MODULE_NOT_FOUND") {
-                    throw e;
-                }
-            }
-        });
-        compiler.hooks.afterPlugins.tap(thisPluginName, (compiler) => {
-            compiler.hooks.thisCompilation.tap({
-                name: thisPluginName,
-                stage: -10000,
-            }, (compilation) => {
-                this.setup(compilation);
-            });
-            compiler.hooks.compilation.tap(thisPluginName, (compilation) => {
-                compilation.hooks.statsFactory.tap(thisPluginName, (statsFactory) => {
-                    statsFactory.hooks.extract
-                        .for("asset")
-                        .tap(thisPluginName, (object, asset) => {
-                        var _a;
-                        const contenthash = (_a = asset.info) === null || _a === void 0 ? void 0 : _a.contenthash;
-                        if (contenthash) {
-                            const shaHashes = (Array.isArray(contenthash) ? contenthash : [contenthash]).filter((hash) => String(hash).match(/^sha[0-9]+-/));
-                            if (shaHashes.length > 0) {
-                                object.integrity =
-                                    shaHashes.join(" ");
-                            }
-                        }
-                    });
-                });
-            });
-        });
-    }
+var status = {
+  isUnloading: false,
+  // TODO Workaround for webpack v4, `__webpack_hash__` is not replaced without HotModuleReplacement
+  // eslint-disable-next-line camelcase
+  currentHash: typeof __webpack_hash__ !== "undefined" ? __webpack_hash__ : ""
+};
+
+/** @type {Options} */
+var options = {
+  hot: false,
+  liveReload: false,
+  progress: false,
+  overlay: false
+};
+var parsedResourceQuery = parseURL(__resourceQuery);
+var enabledFeatures = {
+  "Hot Module Replacement": false,
+  "Live Reloading": false,
+  Progress: false,
+  Overlay: false
+};
+if (parsedResourceQuery.hot === "true") {
+  options.hot = true;
+  enabledFeatures["Hot Module Replacement"] = true;
 }
-exports.SubresourceIntegrityPlugin = SubresourceIntegrityPlugin;
-//# sourceMappingURL=index.js.map
+if (parsedResourceQuery["live-reload"] === "true") {
+  options.liveReload = true;
+  enabledFeatures["Live Reloading"] = true;
+}
+if (parsedResourceQuery.progress === "true") {
+  options.progress = true;
+  enabledFeatures.Progress = true;
+}
+if (parsedResourceQuery.overlay) {
+  try {
+    options.overlay = JSON.parse(parsedResourceQuery.overlay);
+  } catch (e) {
+    log.error("Error parsing overlay options from resource query:", e);
+  }
+
+  // Fill in default "true" params for partially-specified objects.
+  if (typeof options.overlay === "object") {
+    options.overlay = _objectSpread({
+      errors: true,
+      warnings: true,
+      runtimeErrors: true
+    }, options.overlay);
+    decodeOverlayOptions(options.overlay);
+  }
+  enabledFeatures.Overlay = true;
+}
+if (parsedResourceQuery.logging) {
+  options.logging = parsedResourceQuery.logging;
+}
+if (typeof parsedResourceQuery.reconnect !== "undefined") {
+  options.reconnect = Number(parsedResourceQuery.reconnect);
+}
+
+/**
+ * @param {string} level
+ */
+function setAllLogLevel(level) {
+  // This is needed because the HMR logger operate separately from dev server logger
+  webpackHotLog.setLogLevel(level === "verbose" || level === "log" ? "info" : level);
+  setLogLevel(level);
+}
+if (options.logging) {
+  setAllLogLevel(options.logging);
+}
+logEnabledFeatures(enabledFeatures);
+self.addEventListener("beforeunload", function () {
+  status.isUnloading = true;
+});
+var overlay = typeof window !== "undefined" ? createOverlay(typeof options.overlay === "object" ? {
+  trustedTypesPolicyName: options.overlay.trustedTypesPolicyName,
+  catchRuntimeError: options.overlay.runtimeErrors
+} : {
+  trustedTypesPolicyName: false,
+  catchRuntimeError: options.overlay
+}) : {
+  send: function send() {}
+};
+var onSocketMessage = {
+  hot: function hot() {
+    if (parsedResourceQuery.hot === "false") {
+      return;
+    }
+    options.hot = true;
+  },
+  liveReload: function liveReload() {
+    if (parsedResourceQuery["live-reload"] === "false") {
+      return;
+    }
+    options.liveReload = true;
+  },
+  invalid: function invalid() {
+    log.info("App updated. Recompiling...");
+
+    // Fixes #1042. overlay doesn't clear if errors are fixed but warnings remain.
+    if (options.overlay) {
+      overlay.send({
+        type: "DISMISS"
+      });
+    }
+    sendMessage("Invalid");
+  },
+  /**
+   * @param {string} hash
+   */
+  hash: function hash(_hash) {
+    status.previousHash = status.currentHash;
+    status.currentHash = _hash;
+  },
+  logging: setAllLogLevel,
+  /**
+   * @param {boolean} value
+   */
+  overlay: function overlay(value) {
+    if (typeof document === "undefined") {
+      return;
+    }
+    options.overlay = value;
+    decodeOverlayOptions(options.overlay);
+  },
+  /**
+   * @param {number} value
+   */
+  reconnect: function reconnect(value) {
+    if (parsedResourceQuery.reconnect === "false") {
+      return;
+    }
+    options.reconnect = value;
+  },
+  /**
+   * @param {boolean} value
+   */
+  progress: function progress(value) {
+    options.progress = value;
+  },
+  /**
+   * @param {{ pluginName?: string, percent: number, msg: string }} data
+   */
+  "progress-update": function progressUpdate(data) {
+    if (options.progress) {
+      log.info("".concat(data.pluginName ? "[".concat(data.pluginName, "] ") : "").concat(data.percent, "% - ").concat(data.msg, "."));
+    }
+    sendMessage("Progress", data);
+  },
+  "still-ok": function stillOk() {
+    log.info("Nothing changed.");
+    if (options.overlay) {
+      overlay.send({
+        type: "DISMISS"
+      });
+    }
+    sendMessage("StillOk");
+  },
+  ok: function ok() {
+    sendMessage("Ok");
+    if (options.overlay) {
+      overlay.send({
+        type: "DISMISS"
+      });
+    }
+    reloadApp(options, status);
+  },
+  // TODO: remove in v5 in favor of 'static-changed'
+  /**
+   * @param {string} file
+   */
+  "content-changed": function contentChanged(file) {
+    log.info("".concat(file ? "\"".concat(file, "\"") : "Content", " from static directory was changed. Reloading..."));
+    self.location.reload();
+  },
+  /**
+   * @param {string} file
+   */
+  "static-changed": function staticChanged(file) {
+    log.info("".concat(file ? "\"".concat(file, "\"") : "Content", " from static directory was changed. Reloading..."));
+    self.location.reload();
+  },
+  /**
+   * @param {Error[]} warnings
+   * @param {any} params
+   */
+  warnings: function warnings(_warnings, params) {
+    log.warn("Warnings while compiling.");
+    var printableWarnings = _warnings.map(function (error) {
+      var _formatProblem = formatProblem("warning", error),
+        header = _formatProblem.header,
+        body = _formatProblem.body;
+      return "".concat(header, "\n").concat(stripAnsi(body));
+    });
+    sendMessage("Warnings", printableWarnings);
+    for (var i = 0; i < printableWarnings.length; i++) {
+      log.warn(printableWarnings[i]);
+    }
+    var overlayWarningsSetting = typeof options.overlay === "boolean" ? options.overlay : options.overlay && options.overlay.warnings;
+    if (overlayWarningsSetting) {
+      var warningsToDisplay = typeof overlayWarningsSetting === "function" ? _warnings.filter(overlayWarningsSetting) : _warnings;
+      if (warningsToDisplay.length) {
+        overlay.send({
+          type: "BUILD_ERROR",
+          level: "warning",
+          messages: _warnings
+        });
+      }
+    }
+    if (params && params.preventReloading) {
+      return;
+    }
+    reloadApp(options, status);
+  },
+  /**
+   * @param {Error[]} errors
+   */
+  errors: function errors(_errors) {
+    log.error("Errors while compiling. Reload prevented.");
+    var printableErrors = _errors.map(function (error) {
+      var _formatProblem2 = formatProblem("error", error),
+        header = _formatProblem2.header,
+        body = _formatProblem2.body;
+      return "".concat(header, "\n").concat(stripAnsi(body));
+    });
+    sendMessage("Errors", printableErrors);
+    for (var i = 0; i < printableErrors.length; i++) {
+      log.error(printableErrors[i]);
+    }
+    var overlayErrorsSettings = typeof options.overlay === "boolean" ? options.overlay : options.overlay && options.overlay.errors;
+    if (overlayErrorsSettings) {
+      var errorsToDisplay = typeof overlayErrorsSettings === "function" ? _errors.filter(overlayErrorsSettings) : _errors;
+      if (errorsToDisplay.length) {
+        overlay.send({
+          type: "BUILD_ERROR",
+          level: "error",
+          messages: _errors
+        });
+      }
+    }
+  },
+  /**
+   * @param {Error} error
+   */
+  error: function error(_error) {
+    log.error(_error);
+  },
+  close: function close() {
+    log.info("Disconnected!");
+    if (options.overlay) {
+      overlay.send({
+        type: "DISMISS"
+      });
+    }
+    sendMessage("Close");
+  }
+};
+var socketURL = createSocketURL(parsedResourceQuery);
+socket(socketURL, onSocketMessage, options.reconnect);
