@@ -1,287 +1,121 @@
-"use strict";
+'use strict'
 
-const {
-  validate
-} = require("schema-utils");
-const mime = require("mime-types");
-const middleware = require("./middleware");
-const getFilenameFromUrl = require("./utils/getFilenameFromUrl");
-const setupHooks = require("./utils/setupHooks");
-const setupWriteToDisk = require("./utils/setupWriteToDisk");
-const setupOutputFileSystem = require("./utils/setupOutputFileSystem");
-const ready = require("./utils/ready");
-const schema = require("./options.json");
-const noop = () => {};
+const hexify = char => {
+  const h = char.charCodeAt(0).toString(16).toUpperCase()
+  return '0x' + (h.length % 2 ? '0' : '') + h
+}
 
-/** @typedef {import("schema-utils/declarations/validate").Schema} Schema */
-/** @typedef {import("webpack").Compiler} Compiler */
-/** @typedef {import("webpack").MultiCompiler} MultiCompiler */
-/** @typedef {import("webpack").Configuration} Configuration */
-/** @typedef {import("webpack").Stats} Stats */
-/** @typedef {import("webpack").MultiStats} MultiStats */
-/** @typedef {import("fs").ReadStream} ReadStream */
-
-/**
- * @typedef {Object} ExtendedServerResponse
- * @property {{ webpack?: { devMiddleware?: Context<IncomingMessage, ServerResponse> } }} [locals]
- */
-
-/** @typedef {import("http").IncomingMessage} IncomingMessage */
-/** @typedef {import("http").ServerResponse & ExtendedServerResponse} ServerResponse */
-
-/**
- * @callback NextFunction
- * @param {any} [err]
- * @return {void}
- */
-
-/**
- * @typedef {NonNullable<Configuration["watchOptions"]>} WatchOptions
- */
-
-/**
- * @typedef {Compiler["watching"]} Watching
- */
-
-/**
- * @typedef {ReturnType<Compiler["watch"]>} MultiWatching
- */
-
-/**
- * @typedef {Compiler["outputFileSystem"] & { createReadStream?: import("fs").createReadStream, statSync?: import("fs").statSync, lstat?: import("fs").lstat, readFileSync?: import("fs").readFileSync }} OutputFileSystem
- */
-
-/** @typedef {ReturnType<Compiler["getInfrastructureLogger"]>} Logger */
-
-/**
- * @callback Callback
- * @param {Stats | MultiStats} [stats]
- */
-
-/**
- * @typedef {Object} ResponseData
- * @property {string | Buffer | ReadStream} data
- * @property {number} byteLength
- */
-
-/**
- * @template {IncomingMessage} RequestInternal
- * @template {ServerResponse} ResponseInternal
- * @callback ModifyResponseData
- * @param {RequestInternal} req
- * @param {ResponseInternal} res
- * @param {string | Buffer | ReadStream} data
- * @param {number} byteLength
- * @return {ResponseData}
- */
-
-/**
- * @template {IncomingMessage} RequestInternal
- * @template {ServerResponse} ResponseInternal
- * @typedef {Object} Context
- * @property {boolean} state
- * @property {Stats | MultiStats | undefined} stats
- * @property {Callback[]} callbacks
- * @property {Options<RequestInternal, ResponseInternal>} options
- * @property {Compiler | MultiCompiler} compiler
- * @property {Watching | MultiWatching} watching
- * @property {Logger} logger
- * @property {OutputFileSystem} outputFileSystem
- */
-
-/**
- * @template {IncomingMessage} RequestInternal
- * @template {ServerResponse} ResponseInternal
- * @typedef {Record<string, string | number> | Array<{ key: string, value: number | string }> | ((req: RequestInternal, res: ResponseInternal, context: Context<RequestInternal, ResponseInternal>) =>  void | undefined | Record<string, string | number>) | undefined} Headers
- */
-
-/**
- * @template {IncomingMessage} RequestInternal
- * @template {ServerResponse} ResponseInternal
- * @typedef {Object} Options
- * @property {{[key: string]: string}} [mimeTypes]
- * @property {string | undefined} [mimeTypeDefault]
- * @property {boolean | ((targetPath: string) => boolean)} [writeToDisk]
- * @property {string[]} [methods]
- * @property {Headers<RequestInternal, ResponseInternal>} [headers]
- * @property {NonNullable<Configuration["output"]>["publicPath"]} [publicPath]
- * @property {Configuration["stats"]} [stats]
- * @property {boolean} [serverSideRender]
- * @property {OutputFileSystem} [outputFileSystem]
- * @property {boolean | string} [index]
- * @property {ModifyResponseData<RequestInternal, ResponseInternal>} [modifyResponseData]
- */
-
-/**
- * @template {IncomingMessage} RequestInternal
- * @template {ServerResponse} ResponseInternal
- * @callback Middleware
- * @param {RequestInternal} req
- * @param {ResponseInternal} res
- * @param {NextFunction} next
- * @return {Promise<void>}
- */
-
-/**
- * @callback GetFilenameFromUrl
- * @param {string} url
- * @returns {string | undefined}
- */
-
-/**
- * @callback WaitUntilValid
- * @param {Callback} callback
- */
-
-/**
- * @callback Invalidate
- * @param {Callback} callback
- */
-
-/**
- * @callback Close
- * @param {(err: Error | null | undefined) => void} callback
- */
-
-/**
- * @template {IncomingMessage} RequestInternal
- * @template {ServerResponse} ResponseInternal
- * @typedef {Object} AdditionalMethods
- * @property {GetFilenameFromUrl} getFilenameFromUrl
- * @property {WaitUntilValid} waitUntilValid
- * @property {Invalidate} invalidate
- * @property {Close} close
- * @property {Context<RequestInternal, ResponseInternal>} context
- */
-
-/**
- * @template {IncomingMessage} RequestInternal
- * @template {ServerResponse} ResponseInternal
- * @typedef {Middleware<RequestInternal, ResponseInternal> & AdditionalMethods<RequestInternal, ResponseInternal>} API
- */
-
-/**
- * @template {IncomingMessage} RequestInternal
- * @template {ServerResponse} ResponseInternal
- * @param {Compiler | MultiCompiler} compiler
- * @param {Options<RequestInternal, ResponseInternal>} [options]
- * @returns {API<RequestInternal, ResponseInternal>}
- */
-function wdm(compiler, options = {}) {
-  validate( /** @type {Schema} */schema, options, {
-    name: "Dev Middleware",
-    baseDataPath: "options"
-  });
-  const {
-    mimeTypes
-  } = options;
-  if (mimeTypes) {
-    const {
-      types
-    } = mime;
-
-    // mimeTypes from user provided options should take priority
-    // over existing, known types
-    // @ts-ignore
-    mime.types = {
-      ...types,
-      ...mimeTypes
-    };
-  }
-
-  /**
-   * @type {Context<RequestInternal, ResponseInternal>}
-   */
-  const context = {
-    state: false,
-    // eslint-disable-next-line no-undefined
-    stats: undefined,
-    callbacks: [],
-    options,
-    compiler,
-    // @ts-ignore
-    // eslint-disable-next-line no-undefined
-    watching: undefined,
-    logger: compiler.getInfrastructureLogger("webpack-dev-middleware"),
-    // @ts-ignore
-    // eslint-disable-next-line no-undefined
-    outputFileSystem: undefined
-  };
-  setupHooks(context);
-  if (options.writeToDisk) {
-    setupWriteToDisk(context);
-  }
-  setupOutputFileSystem(context);
-
-  // Start watching
-  if ( /** @type {Compiler} */context.compiler.watching) {
-    context.watching = /** @type {Compiler} */context.compiler.watching;
-  } else {
-    /**
-     * @type {WatchOptions | WatchOptions[]}
-     */
-    let watchOptions;
-
-    /**
-     * @param {Error | null | undefined} error
-     */
-    const errorHandler = error => {
-      if (error) {
-        // TODO: improve that in future
-        // For example - `writeToDisk` can throw an error and right now it is ends watching.
-        // We can improve that and keep watching active, but it is require API on webpack side.
-        // Let's implement that in webpack@5 because it is rare case.
-        context.logger.error(error);
-      }
-    };
-    if (Array.isArray( /** @type {MultiCompiler} */context.compiler.compilers)) {
-      watchOptions = /** @type {MultiCompiler} */
-      context.compiler.compilers.map(
-      /**
-       * @param {Compiler} childCompiler
-       * @returns {WatchOptions}
-       */
-      childCompiler => childCompiler.options.watchOptions || {});
-      context.watching = /** @type {MultiWatching} */
-
-      context.compiler.watch( /** @type {WatchOptions}} */
-      watchOptions, errorHandler);
-    } else {
-      watchOptions = /** @type {Compiler} */context.compiler.options.watchOptions || {};
-      context.watching = /** @type {Watching} */
-      context.compiler.watch(watchOptions, errorHandler);
+const parseError = (e, txt, context) => {
+  if (!txt) {
+    return {
+      message: e.message + ' while parsing empty string',
+      position: 0,
     }
   }
-  const instance = /** @type {API<RequestInternal, ResponseInternal>} */
-  middleware(context);
+  const badToken = e.message.match(/^Unexpected token (.) .*position\s+(\d+)/i)
+  const errIdx = badToken ? +badToken[2]
+    : e.message.match(/^Unexpected end of JSON.*/i) ? txt.length - 1
+    : null
 
-  // API
-  /** @type {API<RequestInternal, ResponseInternal>} */
-  instance.getFilenameFromUrl =
-  /**
-   * @param {string} url
-   * @returns {string|undefined}
-   */
-  url => getFilenameFromUrl(context, url);
+  const msg = badToken ? e.message.replace(/^Unexpected token ./, `Unexpected token ${
+      JSON.stringify(badToken[1])
+    } (${hexify(badToken[1])})`)
+    : e.message
 
-  /** @type {API<RequestInternal, ResponseInternal>} */
-  instance.waitUntilValid = (callback = noop) => {
-    ready(context, callback);
-  };
+  if (errIdx !== null && errIdx !== undefined) {
+    const start = errIdx <= context ? 0
+      : errIdx - context
 
-  /** @type {API<RequestInternal, ResponseInternal>} */
-  instance.invalidate = (callback = noop) => {
-    ready(context, callback);
-    context.watching.invalidate();
-  };
+    const end = errIdx + context >= txt.length ? txt.length
+      : errIdx + context
 
-  /** @type {API<RequestInternal, ResponseInternal>} */
-  instance.close = (callback = noop) => {
-    context.watching.close(callback);
-  };
+    const slice = (start === 0 ? '' : '...') +
+      txt.slice(start, end) +
+      (end === txt.length ? '' : '...')
 
-  /** @type {API<RequestInternal, ResponseInternal>} */
-  instance.context = context;
-  return instance;
+    const near = txt === slice ? '' : 'near '
+
+    return {
+      message: msg + ` while parsing ${near}${JSON.stringify(slice)}`,
+      position: errIdx,
+    }
+  } else {
+    return {
+      message: msg + ` while parsing '${txt.slice(0, context * 2)}'`,
+      position: 0,
+    }
+  }
 }
-module.exports = wdm;
+
+class JSONParseError extends SyntaxError {
+  constructor (er, txt, context, caller) {
+    context = context || 20
+    const metadata = parseError(er, txt, context)
+    super(metadata.message)
+    Object.assign(this, metadata)
+    this.code = 'EJSONPARSE'
+    this.systemError = er
+    Error.captureStackTrace(this, caller || this.constructor)
+  }
+  get name () { return this.constructor.name }
+  set name (n) {}
+  get [Symbol.toStringTag] () { return this.constructor.name }
+}
+
+const kIndent = Symbol.for('indent')
+const kNewline = Symbol.for('newline')
+// only respect indentation if we got a line break, otherwise squash it
+// things other than objects and arrays aren't indented, so ignore those
+// Important: in both of these regexps, the $1 capture group is the newline
+// or undefined, and the $2 capture group is the indent, or undefined.
+const formatRE = /^\s*[{\[]((?:\r?\n)+)([\s\t]*)/
+const emptyRE = /^(?:\{\}|\[\])((?:\r?\n)+)?$/
+
+const parseJson = (txt, reviver, context) => {
+  const parseText = stripBOM(txt)
+  context = context || 20
+  try {
+    // get the indentation so that we can save it back nicely
+    // if the file starts with {" then we have an indent of '', ie, none
+    // otherwise, pick the indentation of the next line after the first \n
+    // If the pattern doesn't match, then it means no indentation.
+    // JSON.stringify ignores symbols, so this is reasonably safe.
+    // if the string is '{}' or '[]', then use the default 2-space indent.
+    const [, newline = '\n', indent = '  '] = parseText.match(emptyRE) ||
+      parseText.match(formatRE) ||
+      [, '', '']
+
+    const result = JSON.parse(parseText, reviver)
+    if (result && typeof result === 'object') {
+      result[kNewline] = newline
+      result[kIndent] = indent
+    }
+    return result
+  } catch (e) {
+    if (typeof txt !== 'string' && !Buffer.isBuffer(txt)) {
+      const isEmptyArray = Array.isArray(txt) && txt.length === 0
+      throw Object.assign(new TypeError(
+        `Cannot parse ${isEmptyArray ? 'an empty array' : String(txt)}`
+      ), {
+        code: 'EJSONPARSE',
+        systemError: e,
+      })
+    }
+
+    throw new JSONParseError(e, parseText, context, parseJson)
+  }
+}
+
+// Remove byte order marker. This catches EF BB BF (the UTF-8 BOM)
+// because the buffer-to-string conversion in `fs.readFileSync()`
+// translates it to FEFF, the UTF-16 BOM.
+const stripBOM = txt => String(txt).replace(/^\uFEFF/, '')
+
+module.exports = parseJson
+parseJson.JSONParseError = JSONParseError
+
+parseJson.noExceptions = (txt, reviver) => {
+  try {
+    return JSON.parse(stripBOM(txt), reviver)
+  } catch (e) {}
+}
