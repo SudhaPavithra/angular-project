@@ -1,320 +1,287 @@
-function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); enumerableOnly && (symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; })), keys.push.apply(keys, symbols); } return keys; }
-function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = null != arguments[i] ? arguments[i] : {}; i % 2 ? ownKeys(Object(source), !0).forEach(function (key) { _defineProperty(target, key, source[key]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } return target; }
-function _defineProperty(obj, key, value) { key = _toPropertyKey(key); if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-function _toPropertyKey(arg) { var key = _toPrimitive(arg, "string"); return typeof key === "symbol" ? key : String(key); }
-function _toPrimitive(input, hint) { if (typeof input !== "object" || input === null) return input; var prim = input[Symbol.toPrimitive]; if (prim !== undefined) { var res = prim.call(input, hint || "default"); if (typeof res !== "object") return res; throw new TypeError("@@toPrimitive must return a primitive value."); } return (hint === "string" ? String : Number)(input); }
-/* global __resourceQuery, __webpack_hash__ */
-/// <reference types="webpack/module" />
-import webpackHotLog from "webpack/hot/log.js";
-import stripAnsi from "./utils/stripAnsi.js";
-import parseURL from "./utils/parseURL.js";
-import socket from "./socket.js";
-import { formatProblem, createOverlay } from "./overlay.js";
-import { log, logEnabledFeatures, setLogLevel } from "./utils/log.js";
-import sendMessage from "./utils/sendMessage.js";
-import reloadApp from "./utils/reloadApp.js";
-import createSocketURL from "./utils/createSocketURL.js";
+"use strict";
+
+const {
+  validate
+} = require("schema-utils");
+const mime = require("mime-types");
+const middleware = require("./middleware");
+const getFilenameFromUrl = require("./utils/getFilenameFromUrl");
+const setupHooks = require("./utils/setupHooks");
+const setupWriteToDisk = require("./utils/setupWriteToDisk");
+const setupOutputFileSystem = require("./utils/setupOutputFileSystem");
+const ready = require("./utils/ready");
+const schema = require("./options.json");
+const noop = () => {};
+
+/** @typedef {import("schema-utils/declarations/validate").Schema} Schema */
+/** @typedef {import("webpack").Compiler} Compiler */
+/** @typedef {import("webpack").MultiCompiler} MultiCompiler */
+/** @typedef {import("webpack").Configuration} Configuration */
+/** @typedef {import("webpack").Stats} Stats */
+/** @typedef {import("webpack").MultiStats} MultiStats */
+/** @typedef {import("fs").ReadStream} ReadStream */
 
 /**
- * @typedef {Object} OverlayOptions
- * @property {boolean | (error: Error) => boolean} [warnings]
- * @property {boolean | (error: Error) => boolean} [errors]
- * @property {boolean | (error: Error) => boolean} [runtimeErrors]
- * @property {string} [trustedTypesPolicyName]
+ * @typedef {Object} ExtendedServerResponse
+ * @property {{ webpack?: { devMiddleware?: Context<IncomingMessage, ServerResponse> } }} [locals]
+ */
+
+/** @typedef {import("http").IncomingMessage} IncomingMessage */
+/** @typedef {import("http").ServerResponse & ExtendedServerResponse} ServerResponse */
+
+/**
+ * @callback NextFunction
+ * @param {any} [err]
+ * @return {void}
  */
 
 /**
+ * @typedef {NonNullable<Configuration["watchOptions"]>} WatchOptions
+ */
+
+/**
+ * @typedef {Compiler["watching"]} Watching
+ */
+
+/**
+ * @typedef {ReturnType<Compiler["watch"]>} MultiWatching
+ */
+
+/**
+ * @typedef {Compiler["outputFileSystem"] & { createReadStream?: import("fs").createReadStream, statSync?: import("fs").statSync, lstat?: import("fs").lstat, readFileSync?: import("fs").readFileSync }} OutputFileSystem
+ */
+
+/** @typedef {ReturnType<Compiler["getInfrastructureLogger"]>} Logger */
+
+/**
+ * @callback Callback
+ * @param {Stats | MultiStats} [stats]
+ */
+
+/**
+ * @typedef {Object} ResponseData
+ * @property {string | Buffer | ReadStream} data
+ * @property {number} byteLength
+ */
+
+/**
+ * @template {IncomingMessage} RequestInternal
+ * @template {ServerResponse} ResponseInternal
+ * @callback ModifyResponseData
+ * @param {RequestInternal} req
+ * @param {ResponseInternal} res
+ * @param {string | Buffer | ReadStream} data
+ * @param {number} byteLength
+ * @return {ResponseData}
+ */
+
+/**
+ * @template {IncomingMessage} RequestInternal
+ * @template {ServerResponse} ResponseInternal
+ * @typedef {Object} Context
+ * @property {boolean} state
+ * @property {Stats | MultiStats | undefined} stats
+ * @property {Callback[]} callbacks
+ * @property {Options<RequestInternal, ResponseInternal>} options
+ * @property {Compiler | MultiCompiler} compiler
+ * @property {Watching | MultiWatching} watching
+ * @property {Logger} logger
+ * @property {OutputFileSystem} outputFileSystem
+ */
+
+/**
+ * @template {IncomingMessage} RequestInternal
+ * @template {ServerResponse} ResponseInternal
+ * @typedef {Record<string, string | number> | Array<{ key: string, value: number | string }> | ((req: RequestInternal, res: ResponseInternal, context: Context<RequestInternal, ResponseInternal>) =>  void | undefined | Record<string, string | number>) | undefined} Headers
+ */
+
+/**
+ * @template {IncomingMessage} RequestInternal
+ * @template {ServerResponse} ResponseInternal
  * @typedef {Object} Options
- * @property {boolean} hot
- * @property {boolean} liveReload
- * @property {boolean} progress
- * @property {boolean | OverlayOptions} overlay
- * @property {string} [logging]
- * @property {number} [reconnect]
+ * @property {{[key: string]: string}} [mimeTypes]
+ * @property {string | undefined} [mimeTypeDefault]
+ * @property {boolean | ((targetPath: string) => boolean)} [writeToDisk]
+ * @property {string[]} [methods]
+ * @property {Headers<RequestInternal, ResponseInternal>} [headers]
+ * @property {NonNullable<Configuration["output"]>["publicPath"]} [publicPath]
+ * @property {Configuration["stats"]} [stats]
+ * @property {boolean} [serverSideRender]
+ * @property {OutputFileSystem} [outputFileSystem]
+ * @property {boolean | string} [index]
+ * @property {ModifyResponseData<RequestInternal, ResponseInternal>} [modifyResponseData]
  */
 
 /**
- * @typedef {Object} Status
- * @property {boolean} isUnloading
- * @property {string} currentHash
- * @property {string} [previousHash]
+ * @template {IncomingMessage} RequestInternal
+ * @template {ServerResponse} ResponseInternal
+ * @callback Middleware
+ * @param {RequestInternal} req
+ * @param {ResponseInternal} res
+ * @param {NextFunction} next
+ * @return {Promise<void>}
  */
 
 /**
- * @param {boolean | { warnings?: boolean | string; errors?: boolean | string; runtimeErrors?: boolean | string; }} overlayOptions
+ * @callback GetFilenameFromUrl
+ * @param {string} url
+ * @returns {string | undefined}
  */
-var decodeOverlayOptions = function decodeOverlayOptions(overlayOptions) {
-  if (typeof overlayOptions === "object") {
-    ["warnings", "errors", "runtimeErrors"].forEach(function (property) {
-      if (typeof overlayOptions[property] === "string") {
-        var overlayFilterFunctionString = decodeURIComponent(overlayOptions[property]);
 
-        // eslint-disable-next-line no-new-func
-        var overlayFilterFunction = new Function("message", "var callback = ".concat(overlayFilterFunctionString, "\n        return callback(message)"));
-        overlayOptions[property] = overlayFilterFunction;
+/**
+ * @callback WaitUntilValid
+ * @param {Callback} callback
+ */
+
+/**
+ * @callback Invalidate
+ * @param {Callback} callback
+ */
+
+/**
+ * @callback Close
+ * @param {(err: Error | null | undefined) => void} callback
+ */
+
+/**
+ * @template {IncomingMessage} RequestInternal
+ * @template {ServerResponse} ResponseInternal
+ * @typedef {Object} AdditionalMethods
+ * @property {GetFilenameFromUrl} getFilenameFromUrl
+ * @property {WaitUntilValid} waitUntilValid
+ * @property {Invalidate} invalidate
+ * @property {Close} close
+ * @property {Context<RequestInternal, ResponseInternal>} context
+ */
+
+/**
+ * @template {IncomingMessage} RequestInternal
+ * @template {ServerResponse} ResponseInternal
+ * @typedef {Middleware<RequestInternal, ResponseInternal> & AdditionalMethods<RequestInternal, ResponseInternal>} API
+ */
+
+/**
+ * @template {IncomingMessage} RequestInternal
+ * @template {ServerResponse} ResponseInternal
+ * @param {Compiler | MultiCompiler} compiler
+ * @param {Options<RequestInternal, ResponseInternal>} [options]
+ * @returns {API<RequestInternal, ResponseInternal>}
+ */
+function wdm(compiler, options = {}) {
+  validate( /** @type {Schema} */schema, options, {
+    name: "Dev Middleware",
+    baseDataPath: "options"
+  });
+  const {
+    mimeTypes
+  } = options;
+  if (mimeTypes) {
+    const {
+      types
+    } = mime;
+
+    // mimeTypes from user provided options should take priority
+    // over existing, known types
+    // @ts-ignore
+    mime.types = {
+      ...types,
+      ...mimeTypes
+    };
+  }
+
+  /**
+   * @type {Context<RequestInternal, ResponseInternal>}
+   */
+  const context = {
+    state: false,
+    // eslint-disable-next-line no-undefined
+    stats: undefined,
+    callbacks: [],
+    options,
+    compiler,
+    // @ts-ignore
+    // eslint-disable-next-line no-undefined
+    watching: undefined,
+    logger: compiler.getInfrastructureLogger("webpack-dev-middleware"),
+    // @ts-ignore
+    // eslint-disable-next-line no-undefined
+    outputFileSystem: undefined
+  };
+  setupHooks(context);
+  if (options.writeToDisk) {
+    setupWriteToDisk(context);
+  }
+  setupOutputFileSystem(context);
+
+  // Start watching
+  if ( /** @type {Compiler} */context.compiler.watching) {
+    context.watching = /** @type {Compiler} */context.compiler.watching;
+  } else {
+    /**
+     * @type {WatchOptions | WatchOptions[]}
+     */
+    let watchOptions;
+
+    /**
+     * @param {Error | null | undefined} error
+     */
+    const errorHandler = error => {
+      if (error) {
+        // TODO: improve that in future
+        // For example - `writeToDisk` can throw an error and right now it is ends watching.
+        // We can improve that and keep watching active, but it is require API on webpack side.
+        // Let's implement that in webpack@5 because it is rare case.
+        context.logger.error(error);
       }
-    });
+    };
+    if (Array.isArray( /** @type {MultiCompiler} */context.compiler.compilers)) {
+      watchOptions = /** @type {MultiCompiler} */
+      context.compiler.compilers.map(
+      /**
+       * @param {Compiler} childCompiler
+       * @returns {WatchOptions}
+       */
+      childCompiler => childCompiler.options.watchOptions || {});
+      context.watching = /** @type {MultiWatching} */
+
+      context.compiler.watch( /** @type {WatchOptions}} */
+      watchOptions, errorHandler);
+    } else {
+      watchOptions = /** @type {Compiler} */context.compiler.options.watchOptions || {};
+      context.watching = /** @type {Watching} */
+      context.compiler.watch(watchOptions, errorHandler);
+    }
   }
-};
+  const instance = /** @type {API<RequestInternal, ResponseInternal>} */
+  middleware(context);
 
-/**
- * @type {Status}
- */
-var status = {
-  isUnloading: false,
-  // TODO Workaround for webpack v4, `__webpack_hash__` is not replaced without HotModuleReplacement
-  // eslint-disable-next-line camelcase
-  currentHash: typeof __webpack_hash__ !== "undefined" ? __webpack_hash__ : ""
-};
+  // API
+  /** @type {API<RequestInternal, ResponseInternal>} */
+  instance.getFilenameFromUrl =
+  /**
+   * @param {string} url
+   * @returns {string|undefined}
+   */
+  url => getFilenameFromUrl(context, url);
 
-/** @type {Options} */
-var options = {
-  hot: false,
-  liveReload: false,
-  progress: false,
-  overlay: false
-};
-var parsedResourceQuery = parseURL(__resourceQuery);
-var enabledFeatures = {
-  "Hot Module Replacement": false,
-  "Live Reloading": false,
-  Progress: false,
-  Overlay: false
-};
-if (parsedResourceQuery.hot === "true") {
-  options.hot = true;
-  enabledFeatures["Hot Module Replacement"] = true;
-}
-if (parsedResourceQuery["live-reload"] === "true") {
-  options.liveReload = true;
-  enabledFeatures["Live Reloading"] = true;
-}
-if (parsedResourceQuery.progress === "true") {
-  options.progress = true;
-  enabledFeatures.Progress = true;
-}
-if (parsedResourceQuery.overlay) {
-  try {
-    options.overlay = JSON.parse(parsedResourceQuery.overlay);
-  } catch (e) {
-    log.error("Error parsing overlay options from resource query:", e);
-  }
+  /** @type {API<RequestInternal, ResponseInternal>} */
+  instance.waitUntilValid = (callback = noop) => {
+    ready(context, callback);
+  };
 
-  // Fill in default "true" params for partially-specified objects.
-  if (typeof options.overlay === "object") {
-    options.overlay = _objectSpread({
-      errors: true,
-      warnings: true,
-      runtimeErrors: true
-    }, options.overlay);
-    decodeOverlayOptions(options.overlay);
-  }
-  enabledFeatures.Overlay = true;
-}
-if (parsedResourceQuery.logging) {
-  options.logging = parsedResourceQuery.logging;
-}
-if (typeof parsedResourceQuery.reconnect !== "undefined") {
-  options.reconnect = Number(parsedResourceQuery.reconnect);
-}
+  /** @type {API<RequestInternal, ResponseInternal>} */
+  instance.invalidate = (callback = noop) => {
+    ready(context, callback);
+    context.watching.invalidate();
+  };
 
-/**
- * @param {string} level
- */
-function setAllLogLevel(level) {
-  // This is needed because the HMR logger operate separately from dev server logger
-  webpackHotLog.setLogLevel(level === "verbose" || level === "log" ? "info" : level);
-  setLogLevel(level);
-}
-if (options.logging) {
-  setAllLogLevel(options.logging);
-}
-logEnabledFeatures(enabledFeatures);
-self.addEventListener("beforeunload", function () {
-  status.isUnloading = true;
-});
-var overlay = typeof window !== "undefined" ? createOverlay(typeof options.overlay === "object" ? {
-  trustedTypesPolicyName: options.overlay.trustedTypesPolicyName,
-  catchRuntimeError: options.overlay.runtimeErrors
-} : {
-  trustedTypesPolicyName: false,
-  catchRuntimeError: options.overlay
-}) : {
-  send: function send() {}
-};
-var onSocketMessage = {
-  hot: function hot() {
-    if (parsedResourceQuery.hot === "false") {
-      return;
-    }
-    options.hot = true;
-  },
-  liveReload: function liveReload() {
-    if (parsedResourceQuery["live-reload"] === "false") {
-      return;
-    }
-    options.liveReload = true;
-  },
-  invalid: function invalid() {
-    log.info("App updated. Recompiling...");
+  /** @type {API<RequestInternal, ResponseInternal>} */
+  instance.close = (callback = noop) => {
+    context.watching.close(callback);
+  };
 
-    // Fixes #1042. overlay doesn't clear if errors are fixed but warnings remain.
-    if (options.overlay) {
-      overlay.send({
-        type: "DISMISS"
-      });
-    }
-    sendMessage("Invalid");
-  },
-  /**
-   * @param {string} hash
-   */
-  hash: function hash(_hash) {
-    status.previousHash = status.currentHash;
-    status.currentHash = _hash;
-  },
-  logging: setAllLogLevel,
-  /**
-   * @param {boolean} value
-   */
-  overlay: function overlay(value) {
-    if (typeof document === "undefined") {
-      return;
-    }
-    options.overlay = value;
-    decodeOverlayOptions(options.overlay);
-  },
-  /**
-   * @param {number} value
-   */
-  reconnect: function reconnect(value) {
-    if (parsedResourceQuery.reconnect === "false") {
-      return;
-    }
-    options.reconnect = value;
-  },
-  /**
-   * @param {boolean} value
-   */
-  progress: function progress(value) {
-    options.progress = value;
-  },
-  /**
-   * @param {{ pluginName?: string, percent: number, msg: string }} data
-   */
-  "progress-update": function progressUpdate(data) {
-    if (options.progress) {
-      log.info("".concat(data.pluginName ? "[".concat(data.pluginName, "] ") : "").concat(data.percent, "% - ").concat(data.msg, "."));
-    }
-    sendMessage("Progress", data);
-  },
-  "still-ok": function stillOk() {
-    log.info("Nothing changed.");
-    if (options.overlay) {
-      overlay.send({
-        type: "DISMISS"
-      });
-    }
-    sendMessage("StillOk");
-  },
-  ok: function ok() {
-    sendMessage("Ok");
-    if (options.overlay) {
-      overlay.send({
-        type: "DISMISS"
-      });
-    }
-    reloadApp(options, status);
-  },
-  // TODO: remove in v5 in favor of 'static-changed'
-  /**
-   * @param {string} file
-   */
-  "content-changed": function contentChanged(file) {
-    log.info("".concat(file ? "\"".concat(file, "\"") : "Content", " from static directory was changed. Reloading..."));
-    self.location.reload();
-  },
-  /**
-   * @param {string} file
-   */
-  "static-changed": function staticChanged(file) {
-    log.info("".concat(file ? "\"".concat(file, "\"") : "Content", " from static directory was changed. Reloading..."));
-    self.location.reload();
-  },
-  /**
-   * @param {Error[]} warnings
-   * @param {any} params
-   */
-  warnings: function warnings(_warnings, params) {
-    log.warn("Warnings while compiling.");
-    var printableWarnings = _warnings.map(function (error) {
-      var _formatProblem = formatProblem("warning", error),
-        header = _formatProblem.header,
-        body = _formatProblem.body;
-      return "".concat(header, "\n").concat(stripAnsi(body));
-    });
-    sendMessage("Warnings", printableWarnings);
-    for (var i = 0; i < printableWarnings.length; i++) {
-      log.warn(printableWarnings[i]);
-    }
-    var overlayWarningsSetting = typeof options.overlay === "boolean" ? options.overlay : options.overlay && options.overlay.warnings;
-    if (overlayWarningsSetting) {
-      var warningsToDisplay = typeof overlayWarningsSetting === "function" ? _warnings.filter(overlayWarningsSetting) : _warnings;
-      if (warningsToDisplay.length) {
-        overlay.send({
-          type: "BUILD_ERROR",
-          level: "warning",
-          messages: _warnings
-        });
-      }
-    }
-    if (params && params.preventReloading) {
-      return;
-    }
-    reloadApp(options, status);
-  },
-  /**
-   * @param {Error[]} errors
-   */
-  errors: function errors(_errors) {
-    log.error("Errors while compiling. Reload prevented.");
-    var printableErrors = _errors.map(function (error) {
-      var _formatProblem2 = formatProblem("error", error),
-        header = _formatProblem2.header,
-        body = _formatProblem2.body;
-      return "".concat(header, "\n").concat(stripAnsi(body));
-    });
-    sendMessage("Errors", printableErrors);
-    for (var i = 0; i < printableErrors.length; i++) {
-      log.error(printableErrors[i]);
-    }
-    var overlayErrorsSettings = typeof options.overlay === "boolean" ? options.overlay : options.overlay && options.overlay.errors;
-    if (overlayErrorsSettings) {
-      var errorsToDisplay = typeof overlayErrorsSettings === "function" ? _errors.filter(overlayErrorsSettings) : _errors;
-      if (errorsToDisplay.length) {
-        overlay.send({
-          type: "BUILD_ERROR",
-          level: "error",
-          messages: _errors
-        });
-      }
-    }
-  },
-  /**
-   * @param {Error} error
-   */
-  error: function error(_error) {
-    log.error(_error);
-  },
-  close: function close() {
-    log.info("Disconnected!");
-    if (options.overlay) {
-      overlay.send({
-        type: "DISMISS"
-      });
-    }
-    sendMessage("Close");
-  }
-};
-var socketURL = createSocketURL(parsedResourceQuery);
-socket(socketURL, onSocketMessage, options.reconnect);
+  /** @type {API<RequestInternal, ResponseInternal>} */
+  instance.context = context;
+  return instance;
+}
+module.exports = wdm;
